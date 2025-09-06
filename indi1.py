@@ -69,28 +69,21 @@ else:
     device = "cpu"
     print("Using CPU (this may be slow on large models).")
 
-# Load the IndicWhisper model pipeline
+# Load the IndicWhisper model and processor directly
 print("Loading model, this may take some time...")
-whisper_asr = pipeline(
-    "automatic-speech-recognition",
-    model=MODEL_PATH,
-    device=device,
-    return_timestamps=True,  # Enable timestamps for debugging
-    chunk_length_s=30,      # Process in chunks
-)
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+
+processor = WhisperProcessor.from_pretrained(MODEL_PATH)
+model = WhisperForConditionalGeneration.from_pretrained(MODEL_PATH).to(device)
 
 print(f"Device set to use {device}")
-
-# Set for translation to English
-whisper_asr.model.config.forced_decoder_ids = (
-    whisper_asr.tokenizer.get_decoder_prompt_ids(task="translate")
-)
+print(f"Model config: {model.config}")
 
 # Enable debug logging
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("transformers")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Record audio
 audio_data = record_audio()
@@ -101,7 +94,7 @@ audio_file = "recorded_audio.wav"
 sf.write(audio_file, audio_data, SAMPLE_RATE)
 print(f"Audio saved to {audio_file}")
 
-# Perform translation with debug info
+# Perform translation using direct model approach
 print("Transcribing and translating...")
 print(f"Audio shape: {audio_data.shape}")
 print(f"Audio duration: {len(audio_data) / SAMPLE_RATE:.2f} seconds")
@@ -111,32 +104,76 @@ print(f"Audio min/max values: {audio_data.min():.4f} / {audio_data.max():.4f}")
 audio_rms = np.sqrt(np.mean(audio_data**2))
 print(f"Audio RMS level: {audio_rms:.6f}")
 if audio_rms < 0.01:
-    print("WARNING: Audio seems very quiet. Try speaking louder.")
+    print("WARNING: Audio seems very quiet. Amplifying...")
+    # Amplify quiet audio
+    amplification_factor = 0.02 / audio_rms if audio_rms > 0 else 1.0
+    audio_data = audio_data * min(amplification_factor, 5.0)  # Cap at 5x amplification
+    print(f"Amplified by factor: {min(amplification_factor, 5.0):.2f}")
+    
+    # Check new RMS
+    new_rms = np.sqrt(np.mean(audio_data**2))
+    print(f"New audio RMS level: {new_rms:.6f}")
+    
+    # Ensure no clipping
+    if np.max(np.abs(audio_data)) > 1.0:
+        audio_data = audio_data / np.max(np.abs(audio_data)) * 0.95
+        print("Audio normalized to prevent clipping")
 
-# Process with additional parameters for debugging
-result = whisper_asr(
-    audio_data,
-    generate_kwargs={
-        "task": "translate",
-        "language": "hi",  # Explicitly set Hindi
-        "num_beams": 5,
-        "do_sample": False,
-    }
+# Process the audio using the processor
+print("Processing audio features...")
+input_features = processor(audio_data, sampling_rate=SAMPLE_RATE, return_tensors="pt").input_features.to(device)
+print(f"Input features shape: {input_features.shape}")
+
+# Generate with explicit Hindi language and translation task
+print("Generating transcription...")
+forced_decoder_ids = processor.get_decoder_prompt_ids(language="hi", task="translate")
+print(f"Forced decoder IDs: {forced_decoder_ids}")
+
+predicted_ids = model.generate(
+    input_features,
+    forced_decoder_ids=forced_decoder_ids,
+    max_new_tokens=400,  # Reduced to stay within limits
+    num_beams=5,
+    do_sample=False,
+    temperature=0.0,
+    use_cache=True,
 )
 
-print("Full result:", result)
-print("Translated text (to English):", result["text"])
+print(f"Predicted IDs shape: {predicted_ids.shape}")
+print(f"Predicted IDs: {predicted_ids}")
 
-# Show timestamps if available
-if "chunks" in result:
-    print("Detected chunks:")
-    for i, chunk in enumerate(result["chunks"]):
-        print(f"  Chunk {i+1}: {chunk['timestamp']} - '{chunk['text']}'")
-elif "timestamp" in result:
-    print(f"Timestamp: {result['timestamp']}")
+# Decode the results
+transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)
+print(f"Raw transcription: {transcription}")
+translated_text = transcription[0] if transcription else ""
 
-# Save processed results for analysis
+print("Translated text (to English):", translated_text)
+
+# Also try without forced decoder IDs to see what language it detects
+print("\n--- Testing without language forcing ---")
+predicted_ids_auto = model.generate(
+    input_features,
+    max_new_tokens=400,  # Reduced to stay within limits
+    num_beams=5,
+    do_sample=False,
+    temperature=0.0,
+)
+
+transcription_auto = processor.batch_decode(predicted_ids_auto, skip_special_tokens=True)
+print("Auto-detected result:", transcription_auto[0] if transcription_auto else "")
+
+# Save debug info
+debug_info = {
+    "audio_shape": audio_data.shape,
+    "audio_rms": float(audio_rms),
+    "input_features_shape": list(input_features.shape),
+    "forced_decoder_ids": forced_decoder_ids,
+    "predicted_ids": predicted_ids.tolist(),
+    "forced_transcription": translated_text,
+    "auto_transcription": transcription_auto[0] if transcription_auto else ""
+}
+
 import json
 with open("debug_result.json", "w") as f:
-    json.dump(result, f, indent=2)
+    json.dump(debug_info, f, indent=2)
 print("Debug info saved to debug_result.json")
