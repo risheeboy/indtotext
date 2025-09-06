@@ -3,6 +3,7 @@ import sys
 import subprocess
 import platform
 import sounddevice as sd
+import soundfile as sf
 import numpy as np
 from transformers import pipeline
 import torch
@@ -13,7 +14,6 @@ def is_ffmpeg_installed():
         # Run 'ffmpeg -version' and capture output
         result = subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         if result.returncode == 0:
-            print("FFmpeg is installed.")
             return True
         else:
             print("FFmpeg is not installed.")
@@ -52,14 +52,13 @@ RECORD_DURATION = 10  # seconds
 SAMPLE_RATE = 16000  # Whisper expects 16kHz
 
 def record_audio(duration=RECORD_DURATION, fs=SAMPLE_RATE):
-    print(f"Recording for {duration} seconds...")
+    print(f"### Recording Started. Duration: {duration} seconds")
     audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='float32')
     sd.wait()
-    print("Recording finished.")
+    print("Recording finished")
     return np.squeeze(audio)  # Convert to 1D array
 
 # Determine device: MPS for Apple Silicon, CUDA for NVIDIA, CPU fallback
-# This ensures compatibility across macOS, Linux, and Windows
 if torch.backends.mps.is_available():
     device = "mps"
     print("Using MPS (Apple Silicon GPU) for acceleration.")
@@ -71,22 +70,73 @@ else:
     print("Using CPU (this may be slow on large models).")
 
 # Load the IndicWhisper model pipeline
-print("Loading model... this may take a moment on first run.")
+print("Loading model, this may take some time...")
 whisper_asr = pipeline(
     "automatic-speech-recognition",
     model=MODEL_PATH,
     device=device,
+    return_timestamps=True,  # Enable timestamps for debugging
+    chunk_length_s=30,      # Process in chunks
 )
+
+print(f"Device set to use {device}")
 
 # Set for translation to English
 whisper_asr.model.config.forced_decoder_ids = (
     whisper_asr.tokenizer.get_decoder_prompt_ids(task="translate")
 )
 
+# Enable debug logging
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("transformers")
+logger.setLevel(logging.DEBUG)
+
 # Record audio
 audio_data = record_audio()
+print("Audio recorded")
 
-# Perform translation
+# Save audio to file
+audio_file = "recorded_audio.wav"
+sf.write(audio_file, audio_data, SAMPLE_RATE)
+print(f"Audio saved to {audio_file}")
+
+# Perform translation with debug info
 print("Transcribing and translating...")
-result = whisper_asr(audio_data)
+print(f"Audio shape: {audio_data.shape}")
+print(f"Audio duration: {len(audio_data) / SAMPLE_RATE:.2f} seconds")
+print(f"Audio min/max values: {audio_data.min():.4f} / {audio_data.max():.4f}")
+
+# Check if audio is too quiet
+audio_rms = np.sqrt(np.mean(audio_data**2))
+print(f"Audio RMS level: {audio_rms:.6f}")
+if audio_rms < 0.01:
+    print("WARNING: Audio seems very quiet. Try speaking louder.")
+
+# Process with additional parameters for debugging
+result = whisper_asr(
+    audio_data,
+    generate_kwargs={
+        "task": "translate",
+        "language": "hi",  # Explicitly set Hindi
+        "num_beams": 5,
+        "do_sample": False,
+    }
+)
+
+print("Full result:", result)
 print("Translated text (to English):", result["text"])
+
+# Show timestamps if available
+if "chunks" in result:
+    print("Detected chunks:")
+    for i, chunk in enumerate(result["chunks"]):
+        print(f"  Chunk {i+1}: {chunk['timestamp']} - '{chunk['text']}'")
+elif "timestamp" in result:
+    print(f"Timestamp: {result['timestamp']}")
+
+# Save processed results for analysis
+import json
+with open("debug_result.json", "w") as f:
+    json.dump(result, f, indent=2)
+print("Debug info saved to debug_result.json")
