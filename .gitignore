@@ -2,4 +2,5 @@ hindi_models
 venv
 .DS_Store
 recorded_audio.wav
-debug_result.json
+debug_result*.json
+transcription_*.txt

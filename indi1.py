@@ -48,7 +48,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 # Configuration
 MODEL_PATH = "hindi_models/whisper-medium-hi_alldata_multigpu"  # download from https://indicwhisper.objectstore.e2enetworks.net/hindi_models.zip
-RECORD_DURATION = 10  # seconds
+RECORD_DURATION = 30  # seconds
 SAMPLE_RATE = 16000  # Whisper expects 16kHz
 
 def record_audio(duration=RECORD_DURATION, fs=SAMPLE_RATE):
@@ -124,56 +124,153 @@ print("Processing audio features...")
 input_features = processor(audio_data, sampling_rate=SAMPLE_RATE, return_tensors="pt").input_features.to(device)
 print(f"Input features shape: {input_features.shape}")
 
-# Generate with explicit Hindi language and translation task
-print("Generating transcription...")
-forced_decoder_ids = processor.get_decoder_prompt_ids(language="hi", task="translate")
-print(f"Forced decoder IDs: {forced_decoder_ids}")
+# Test multiple language approaches
+print("Testing different language detection approaches...")
 
-predicted_ids = model.generate(
-    input_features,
-    forced_decoder_ids=forced_decoder_ids,
-    max_new_tokens=400,  # Reduced to stay within limits
-    num_beams=5,
-    do_sample=False,
-    temperature=0.0,
-    use_cache=True,
-)
+# Get available language tokens
+print("Checking supported languages...")
+tokenizer = processor.tokenizer
+print("Available language codes in tokenizer:", [f"<|{lang}|>" for lang in ["hi", "en", "te", "ta", "ml", "kn", "gu", "pa", "bn", "or", "as", "mr"]])
 
-print(f"Predicted IDs shape: {predicted_ids.shape}")
-print(f"Predicted IDs: {predicted_ids}")
+results = {}
 
-# Decode the results
-transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)
-print(f"Raw transcription: {transcription}")
-translated_text = transcription[0] if transcription else ""
-
-print("Translated text (to English):", translated_text)
-
-# Also try without forced decoder IDs to see what language it detects
-print("\n--- Testing without language forcing ---")
+# 1. Auto-detection (no language forcing)
+print("\n--- 1. Auto-detection (let model decide language) ---")
 predicted_ids_auto = model.generate(
     input_features,
-    max_new_tokens=400,  # Reduced to stay within limits
+    max_new_tokens=400,
     num_beams=5,
     do_sample=False,
     temperature=0.0,
 )
+transcription_auto = processor.batch_decode(predicted_ids_auto, skip_special_tokens=True)[0]
+results["auto_detected"] = transcription_auto
+print("Auto-detected result:", transcription_auto)
 
-transcription_auto = processor.batch_decode(predicted_ids_auto, skip_special_tokens=True)
-print("Auto-detected result:", transcription_auto[0] if transcription_auto else "")
+# 2. Test common Indian languages + English
+languages_to_test = ["hi", "en", "te", "ta", "ml", "kn", "gu", "pa", "bn", "mr"]
+print(f"\n--- 2. Testing specific languages: {languages_to_test} ---")
+
+for lang in languages_to_test:
+    try:
+        print(f"\nTesting {lang}:")
+        
+        # Transcribe in original language
+        forced_decoder_ids_transcribe = processor.get_decoder_prompt_ids(language=lang, task="transcribe")
+        predicted_ids_transcribe = model.generate(
+            input_features,
+            forced_decoder_ids=forced_decoder_ids_transcribe,
+            max_new_tokens=400,
+            num_beams=5,
+            do_sample=False,
+            temperature=0.0,
+        )
+        transcription_original = processor.batch_decode(predicted_ids_transcribe, skip_special_tokens=True)[0]
+        
+        # Translate to English
+        forced_decoder_ids_translate = processor.get_decoder_prompt_ids(language=lang, task="translate")
+        predicted_ids_translate = model.generate(
+            input_features,
+            forced_decoder_ids=forced_decoder_ids_translate,
+            max_new_tokens=400,
+            num_beams=5,
+            do_sample=False,
+            temperature=0.0,
+        )
+        transcription_english = processor.batch_decode(predicted_ids_translate, skip_special_tokens=True)[0]
+        
+        results[f"{lang}_original"] = transcription_original
+        results[f"{lang}_english"] = transcription_english
+        
+        print(f"  Original ({lang}): {transcription_original}")
+        
+    except Exception as e:
+        print(f"  Error with {lang}: {e}")
+        results[f"{lang}_error"] = str(e)
+
+# 3. Mixed language approach (try without language specification)
+print("\n--- 3. Mixed language approach ---")
+try:
+    # Generate without language specification but with transcription task
+    predicted_ids_mixed = model.generate(
+        input_features,
+        max_new_tokens=400,
+        num_beams=5,
+        do_sample=False,
+        temperature=0.0,
+        use_cache=True,
+    )
+    transcription_mixed = processor.batch_decode(predicted_ids_mixed, skip_special_tokens=True)[0]
+    results["mixed_language"] = transcription_mixed
+    print("Mixed language result:", transcription_mixed)
+except Exception as e:
+    print(f"Mixed language error: {e}")
+    results["mixed_language_error"] = str(e)
+
+# Find the best result (longest non-empty transcription)
+best_result = ""
+best_lang = "unknown"
+best_english = ""
+
+for key, value in results.items():
+    if "_english" not in key and "_error" not in key and len(value.strip()) > len(best_result.strip()):
+        best_result = value
+        best_lang = key
+        # Try to get corresponding English translation
+        english_key = f"{key.replace('_original', '')}_english"
+        if english_key in results:
+            best_english = results[english_key]
+
+print(f"\n--- BEST RESULT ---")
+print(f"Language: {best_lang}")
+print(f"Original: {best_result}")
+
+# Store final results
+original_text = best_result
+translated_text = best_english if best_english else best_result
+
+# Save transcriptions to file
+import datetime
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# Save to text file
+with open(f"transcription_{timestamp}.txt", "w", encoding="utf-8") as f:
+    f.write(f"Multi-Language Transcription Results - {datetime.datetime.now()}\n")
+    f.write("="*60 + "\n\n")
+    f.write(f"BEST RESULT:\n")
+    f.write(f"Detected Language: {best_lang}\n")
+    f.write(f"Original Text: {original_text}\n")
+    f.write("="*60 + "\n")
+    f.write("ALL RESULTS:\n")
+    f.write("="*60 + "\n")
+    
+    for key, value in results.items():
+        if "_error" not in key:
+            f.write(f"{key}: {value}\n")
+    
+    f.write("\nERRORS:\n")
+    for key, value in results.items():
+        if "_error" in key:
+            f.write(f"{key}: {value}\n")
+
+print(f"\n--- FINAL RESULTS ---")
+print(f"DETECTED LANGUAGE: {best_lang}")
+print(f"ORIGINAL TEXT: {original_text}")
+print(f"Results saved to transcription_{timestamp}.txt")
 
 # Save debug info
 debug_info = {
+    "timestamp": timestamp,
     "audio_shape": audio_data.shape,
     "audio_rms": float(audio_rms),
     "input_features_shape": list(input_features.shape),
-    "forced_decoder_ids": forced_decoder_ids,
-    "predicted_ids": predicted_ids.tolist(),
-    "forced_transcription": translated_text,
-    "auto_transcription": transcription_auto[0] if transcription_auto else ""
+    "best_language": best_lang,
+    "original_text": original_text,
+    "english_translation": translated_text,
+    "all_results": results
 }
 
 import json
-with open("debug_result.json", "w") as f:
-    json.dump(debug_info, f, indent=2)
-print("Debug info saved to debug_result.json")
+with open(f"debug_result_{timestamp}.json", "w", encoding="utf-8") as f:
+    json.dump(debug_info, f, indent=2, ensure_ascii=False)
+print(f"Debug info saved to debug_result_{timestamp}.json")
