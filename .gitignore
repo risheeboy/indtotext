@@ -3,3 +3,6 @@ venv
 .DS_Store
 recorded_audio.wav
 debug_result.json
+transcription*.txt
+debug_result*.json
+firebase-debug*.log

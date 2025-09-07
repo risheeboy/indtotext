@@ -124,9 +124,9 @@ print("Processing audio features...")
 input_features = processor(audio_data, sampling_rate=SAMPLE_RATE, return_tensors="pt").input_features.to(device)
 print(f"Input features shape: {input_features.shape}")
 
-# Generate with explicit Hindi language and translation task
+# Generate transcription in Hindi
 print("Generating transcription...")
-forced_decoder_ids = processor.get_decoder_prompt_ids(language="hi", task="translate")
+forced_decoder_ids = processor.get_decoder_prompt_ids(language="hi", task="transcribe")
 print(f"Forced decoder IDs: {forced_decoder_ids}")
 
 predicted_ids = model.generate(
@@ -145,9 +145,13 @@ print(f"Predicted IDs: {predicted_ids}")
 # Decode the results
 transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)
 print(f"Raw transcription: {transcription}")
-translated_text = transcription[0] if transcription else ""
+hindi_text = transcription[0] if transcription else ""
 
-print("Translated text (to English):", translated_text)
+print("Transcribed text (in Hindi):", hindi_text)
+
+# TODO: Replace with IndicTrans2 for Hindi to English translation
+# translated_text = translate_hindi_to_english(hindi_text)
+# print("Translated text (to English):", translated_text)
 
 # Also try without forced decoder IDs to see what language it detects
 print("\n--- Testing without language forcing ---")
@@ -169,7 +173,7 @@ debug_info = {
     "input_features_shape": list(input_features.shape),
     "forced_decoder_ids": forced_decoder_ids,
     "predicted_ids": predicted_ids.tolist(),
-    "forced_transcription": translated_text,
+    "hindi_transcription": hindi_text,
     "auto_transcription": transcription_auto[0] if transcription_auto else ""
 }
 

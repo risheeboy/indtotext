@@ -1,7 +1,7 @@
 # indi1
 
 Python script to capture audio from the device microphone.
-Use the IndicWhisper model (Hindi example) to translate it to English.
+Use the IndicWhisper model (Hindi example) to transcribe.
 
 ## Prerequisites:
 
