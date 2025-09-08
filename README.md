@@ -1,7 +1,9 @@
-# indi1
+# indtotext
 
-Python script to capture audio from the device microphone.
-Use the IndicWhisper model (Hindi example) to transcribe.
+Python scripts to:
+1. Record 30 seconds audio from the device microphone.
+2. Use IndicWhisper to transcribe.
+3. Use IndicTransToolkit to translate.
 
 ## Prerequisites:
 

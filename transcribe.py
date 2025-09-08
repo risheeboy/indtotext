@@ -48,7 +48,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 # Configuration
 MODEL_PATH = "hindi_models/whisper-medium-hi_alldata_multigpu"  # download from https://indicwhisper.objectstore.e2enetworks.net/hindi_models.zip
-RECORD_DURATION = 10  # seconds
+RECORD_DURATION = 30  # seconds
 SAMPLE_RATE = 16000  # Whisper expects 16kHz
 TRANSCRIPTION_FILE = "transcription.txt"  # Fixed filename for transcription output
 
