@@ -2,3 +2,5 @@ sounddevice
 numpy
 transformers
 torch
+sentencepiece
+IndicTransToolkit

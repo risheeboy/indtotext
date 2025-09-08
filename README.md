@@ -11,9 +11,24 @@ Use the IndicWhisper model (Hindi example) to transcribe.
 * Install requirements:
 
 ```bash
+# Transcription Setup
+git clone https://github.com/risheeboy/indtotext.git
+cd indtotext
 pip -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Translation Setup
+cd ..
+git clone https://github.com/VarunGumma/IndicTransToolkit.git
+cd IndicTransToolkit
+pip install -e .
+cd ../indtotext
+```
+
+Recommended for better performance on GPUs (requires nvcc):
+```bash
+pip install flash-attn --no-build-isolation
 ```
 
 ## Usage:

@@ -50,6 +50,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 MODEL_PATH = "hindi_models/whisper-medium-hi_alldata_multigpu"  # download from https://indicwhisper.objectstore.e2enetworks.net/hindi_models.zip
 RECORD_DURATION = 10  # seconds
 SAMPLE_RATE = 16000  # Whisper expects 16kHz
+TRANSCRIPTION_FILE = "transcription.txt"  # Fixed filename for transcription output
 
 def record_audio(duration=RECORD_DURATION, fs=SAMPLE_RATE):
     print(f"### Recording Started. Duration: {duration} seconds")
@@ -94,8 +95,8 @@ audio_file = "recorded_audio.wav"
 sf.write(audio_file, audio_data, SAMPLE_RATE)
 print(f"Audio saved to {audio_file}")
 
-# Perform translation using direct model approach
-print("Transcribing and translating...")
+# Perform transcription
+print("Transcribing...")
 print(f"Audio shape: {audio_data.shape}")
 print(f"Audio duration: {len(audio_data) / SAMPLE_RATE:.2f} seconds")
 print(f"Audio min/max values: {audio_data.min():.4f} / {audio_data.max():.4f}")
@@ -149,9 +150,10 @@ hindi_text = transcription[0] if transcription else ""
 
 print("Transcribed text (in Hindi):", hindi_text)
 
-# TODO: Replace with IndicTrans2 for Hindi to English translation
-# translated_text = translate_hindi_to_english(hindi_text)
-# print("Translated text (to English):", translated_text)
+# Save transcription to file
+with open(TRANSCRIPTION_FILE, "w", encoding="utf-8") as f:
+    f.write(hindi_text)
+print(f"Transcription saved to {TRANSCRIPTION_FILE}")
 
 # Also try without forced decoder IDs to see what language it detects
 print("\n--- Testing without language forcing ---")

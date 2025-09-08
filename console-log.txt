@@ -1,0 +1,90 @@
+% python transcribe.py
+Using MPS (Apple Silicon GPU) for acceleration.
+Loading model, this may take some time...
+Device set to use mps
+Model config: WhisperConfig {
+  "activation_dropout": 0.0,
+  "activation_function": "gelu",
+  "apply_spec_augment": false,
+  "architectures": [
+    "WhisperForConditionalGeneration"
+  ],
+  "attention_dropout": 0.0,
+  "begin_suppress_tokens": [
+    220,
+    50257
+  ],
+  "bos_token_id": 50257,
+  "classifier_proj_size": 256,
+  "d_model": 1024,
+  "decoder_attention_heads": 16,
+  "decoder_ffn_dim": 4096,
+  "decoder_layerdrop": 0.0,
+  "decoder_layers": 24,
+  "decoder_start_token_id": 50258,
+  "dropout": 0.0,
+  "dtype": "float32",
+  "encoder_attention_heads": 16,
+  "encoder_ffn_dim": 4096,
+  "encoder_layerdrop": 0.0,
+  "encoder_layers": 24,
+  "eos_token_id": 50257,
+  "forced_decoder_ids": null,
+  "init_std": 0.02,
+  "is_encoder_decoder": true,
+  "mask_feature_length": 10,
+  "mask_feature_min_masks": 0,
+  "mask_feature_prob": 0.0,
+  "mask_time_length": 10,
+  "mask_time_min_masks": 2,
+  "mask_time_prob": 0.05,
+  "max_length": 448,
+  "max_source_positions": 1500,
+  "max_target_positions": 448,
+  "median_filter_width": 7,
+  "model_type": "whisper",
+  "num_hidden_layers": 24,
+  "num_mel_bins": 80,
+  "pad_token_id": 50257,
+  "scale_embedding": false,
+  "transformers_version": "4.56.1",
+  "use_cache": false,
+  "use_weighted_layer_sum": false,
+  "vocab_size": 51865
+}
+
+### Recording Started. Duration: 10 seconds
+Recording finished
+Audio recorded
+Audio saved to recorded_audio.wav
+Transcribing...
+Audio shape: (160000,)
+Audio duration: 10.00 seconds
+Audio min/max values: -0.1721 / 0.1920
+Audio RMS level: 0.015104
+Processing audio features...
+Input features shape: torch.Size([1, 80, 3000])
+Generating transcription...
+Forced decoder IDs: [(1, 50276), (2, 50359), (3, 50363)]
+Using custom `forced_decoder_ids` from the (generation) config. This is deprecated in favor of the `task` and `language` flags/config options.
+Predicted IDs shape: torch.Size([1, 24])
+Predicted IDs: tensor([[48268, 21981,  8485,   110, 33926,  3941,   245,  8485,   103, 25411,
+         21981,  3941,   114, 17937, 35082, 31970, 25411,  8485,   108, 44500,
+         21981, 37139, 43372, 31945]], device='mps:0')
+Raw transcription: ['ये लोग परेशान कर रहे हैं']
+Transcribed text (in Hindi): ये लोग परेशान कर रहे हैं
+Transcription saved to transcription.txt
+
+--- Testing without language forcing ---
+Transcription using a multilingual Whisper will default to language detection followed by transcription instead of translation to English. This might be a breaking change for your use case. If you want to instead always translate your audio to English, make sure to pass `language='en'`. See https://github.com/huggingface/transformers/pull/28687 for more details.
+Auto-detected result: ये लोग परेशान कर रहे हैं
+Debug info saved to debug_result.json
+
+
+% python translate.py 
+Read Hindi text: ये लोग परेशान कर रहे हैं
+Loading translation pipeline...
+Device set to use cpu
+Translating Hindi to English...
+Translated text (to English): They're bothering.
+Translation saved to translation.txt

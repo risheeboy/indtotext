@@ -6,3 +6,4 @@ debug_result.json
 transcription*.txt
 debug_result*.json
 firebase-debug*.log
+translation.txt
