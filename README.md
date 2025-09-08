@@ -37,7 +37,12 @@ Run the script:
 
 ```bash
 source venv/bin/activate
-python indi1.py
+
+# Transcription
+python transcribe.py
+
+# Translation
+python translate.py
 ```
 
 It will record audio for 10 seconds (adjust duration as needed) and print the English translation.
